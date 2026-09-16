@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>پنل مدیریت ادمین - اکانت سنتر</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.0.0/Vazirmatn-font-face.css" rel="stylesheet" type="text/css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Vazirmatn', 'sans-serif'] },
+                    colors: { 
+                        skybrand: { 400: '#38bdf8', 500: '#0ea5e9' }, 
+                        purplebrand: { 400: '#c084fc', 500: '#a855f7' }, 
+                        admin: { bg: '#020617', card: '#0f172a', border: '#1e293b' } 
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { font-family: 'Vazirmatn', sans-serif; background-color: #020617; color: #f1f5f9; overflow-x: hidden; }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        .animate-fade-in { animation: fadeIn 0.3s ease-out forwards; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        const INITIAL_ACCOUNTS = []; // Completely empty initial state
+
+        const compressImage = (file, callback) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = (event) => {
+                const img = new Image();
+                img.src = event.target.result;
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    const MAX_WIDTH = 500; const MAX_HEIGHT = 500;
+                    let width = img.width; let height = img.height;
+                    if (width > height) { if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; } } 
+                    else { if (height > MAX_HEIGHT) { width *= MAX_HEIGHT / height; height = MAX_HEIGHT; } }
+                    canvas.width = width; canvas.height = height;
+                    const ctx = canvas.getContext('2d'); ctx.drawImage(img, 0, 0, width, height);
+                    callback(canvas.toDataURL('image/jpeg', 0.5));
+                };
+            };
+        };
+
+        const AdminHeader = () => (
+            <header className="sticky top-0 z-40 bg-[#020617]/95 backdrop-blur-md border-b border-skybrand-500/20 px-4 py-4 flex items-center justify-between shadow-md">
+                <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-skybrand-500/10 border border-skybrand-500/30 flex items-center justify-center text-skybrand-400">
+                        <i className="fas fa-user-shield text-xl"></i>
+                    </div>
+                    <div>
+                        <h1 className="font-black text-white text-base">پنل مدیریت ادمین</h1>
+                        <span className="text-[10px] text-skybrand-400 font-bold">همگام‌سازی زنده با سایت مشتری فعال است</span>
+                    </div>
+                </div>
+                <div className="text-xs bg-red-500/20 text-red-400 px-3 py-1 rounded-full border border-red-500/30 font-bold">بخش محرمانه</div>
+            </header>
+        );
+
+        const AdminApp = () => {
+            const [view, setView] = useState('accounts'); 
+            const [accounts, setAccounts] = useState([]);
+            const [orders, setOrders] = useState([]);
+            const [editingAccount, setEditingAccount] = useState(null);
+
+            const loadData = () => {
+                try {
+                    const savedAccounts = localStorage.getItem('ac_saved_accounts');
+                    if (savedAccounts) {
+                        setAccounts(JSON.parse(savedAccounts));
+                    } else {
+                        setAccounts(INITIAL_ACCOUNTS);
+                        localStorage.setItem('ac_saved_accounts', JSON.stringify(INITIAL_ACCOUNTS));
+                    }
+                    
+                    const savedOrders = localStorage.getItem('ac_orders');
+                    if (savedOrders) {
+                        setOrders(JSON.parse(savedOrders));
+                    }
+                } catch(e) {}
+            };
+
+            useEffect(() => {
+                loadData();
+                // Polling for real-time updates
+                const interval = setInterval(loadData, 500);
+                window.addEventListener('storage', loadData);
+                return () => { window.removeEventListener('storage', loadData); clearInterval(interval); };
+            }, []);
+
+            const syncAccountsToStorage = (newAccounts) => {
+                try {
+                    localStorage.setItem('ac_saved_accounts', JSON.stringify(newAccounts));
+                    setAccounts(newAccounts);
+                    window.dispatchEvent(new Event('storage'));
+                } catch(e) {
+                    alert('خطا در ذخیره‌سازی حافظه مرورگر.');
+                }
+            };
+
+            const syncOrdersToStorage = (newOrders) => {
+                try {
+                    localStorage.setItem('ac_orders', JSON.stringify(newOrders));
+                    setOrders(newOrders);
+                    window.dispatchEvent(new Event('storage'));
+                } catch(e) {}
+            };
+
+            const handleDeleteAccount = (id) => {
+                if (window.confirm('آیا از حذف قطعی این آگهی مطمئن هستید؟')) {
+                    const updated = accounts.filter(a => String(a.id) !== String(id));
+                    syncAccountsToStorage(updated);
+                }
+            };
+
+            const handleMarkAsSold = (id) => {
+                const updated = accounts.map(a => String(a.id) === String(id) ? {...a, status: 'sold'} : a);
+                syncAccountsToStorage(updated);
+            };
+
+            const OrdersView = () => (
+                <div className="animate-fade-in space-y-4">
+                    <h2 className="text-lg font-black text-skybrand-400 mb-4 flex items-center gap-2"><i className="fas fa-shopping-cart"></i> سفارشات جدید مشتریان</h2>
+                    {orders.length === 0 ? (
+                        <div className="text-center py-10 bg-admin-card rounded-3xl border border-admin-border"><p className="text-slate-400 font-bold">هیچ سفارشی هنوز ثبت نشده است.</p></div>
+                    ) : (
+                        orders.map(order => (
+                            <div key={order.id} className="bg-admin-card rounded-2xl border border-skybrand-500/20 p-4 shadow-lg">
+                                <div className="flex justify-between items-center border-b border-white/5 pb-3 mb-3">
+                                    <span className="bg-black/50 text-slate-300 text-xs px-3 py-1 rounded-lg font-mono">#{order.id}</span>
+                                    <span className={`text-xs px-3 py-1 rounded-lg font-bold ${order.status === 'completed' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'}`}>
+                                        {order.status === 'completed' ? 'تکمیل شده' : 'در انتظار بررسی'}
+                                    </span>
+                                </div>
+                                <div className="mb-4">
+                                    <h3 className="font-bold text-white text-base mb-1">{order.accountTitle}</h3>
+                                    <div className="text-sm text-slate-400">کد اکانت: <strong className="text-white">{order.accountCode}</strong></div>
+                                    <div className="text-skybrand-400 font-black mt-2">مبلغ پرداختی: {new Intl.NumberFormat('fa-IR').format(order.price)} تومان</div>
+                                </div>
+                                <div className="bg-[#020617] rounded-xl p-4 border border-white/5 mb-4 space-y-3">
+                                    <h4 className="text-xs font-bold text-purplebrand-400 mb-2">اطلاعات تماس خریدار</h4>
+                                    <div className="flex justify-between items-center bg-white/5 p-2 rounded-lg"><span className="text-xs text-slate-400">آیدی تلگرام:</span><span className="font-mono text-sm text-skybrand-300 font-bold" dir="ltr">{order.telegramId}</span></div>
+                                    <div className="flex justify-between items-center bg-white/5 p-2 rounded-lg"><span className="text-xs text-slate-400">آیدی روبیکا:</span><span className="font-mono text-sm text-purple-300 font-bold" dir="ltr">{order.rubikaId || 'ندارد'}</span></div>
+                                    <div className="flex justify-between items-center bg-white/5 p-2 rounded-lg"><span className="text-xs text-slate-400">شماره تماس:</span><span className="font-mono text-sm text-white font-bold" dir="ltr">{order.phone}</span></div>
+                                </div>
+                                <div className="flex gap-2">
+                                    {order.status !== 'completed' && <button onClick={() => syncOrdersToStorage(orders.map(o => o.id === order.id ? {...o, status: 'completed'} : o))} className="flex-1 bg-emerald-500 hover:bg-emerald-400 text-black font-bold py-3 rounded-xl text-sm transition-colors">تأیید و تکمیل سفارش</button>}
+                                    <button onClick={() => { if(window.confirm('حذف این سفارش؟')) syncOrdersToStorage(orders.filter(o => o.id !== order.id)); }} className="w-12 bg-red-500/10 border border-red-500/20 text-red-400 rounded-xl flex items-center justify-center"><i className="fas fa-trash"></i></button>
+                                </div>
+                            </div>
+                        ))
+                    )}
+                </div>
+            );
+
+            const AccountsView = () => (
+                <div className="animate-fade-in space-y-4">
+                    <h2 className="text-lg font-black text-skybrand-400 mb-4 flex items-center gap-2"><i className="fas fa-list"></i> مدیریت تمامی آگهی‌ها ({accounts.length} آگهی)</h2>
+                    <div className="space-y-4">
+                        {accounts.length === 0 ? (
+                            <div className="text-center py-10 bg-admin-card rounded-3xl border border-admin-border"><p className="text-slate-400 font-bold">هیچ آگهی در سایت وجود ندارد.</p></div>
+                        ) : (
+                            accounts.map(account => {
+                                const thumb = account.lobbyImg || (account.images && account.images[0]) || 'https://placehold.co/800x480/0f172a/38bdf8?text=Account';
+                                return (
+                                    <div key={account.id} className={`bg-admin-card rounded-2xl border ${account.status === 'sold' ? 'border-red-500/30' : 'border-admin-border'} p-3 shadow-lg flex flex-col gap-3`}>
+                                        <div className="flex h-24 gap-3">
+                                            <div className="w-24 h-24 rounded-xl overflow-hidden shrink-0 relative bg-black">
+                                                <img src={thumb} className="w-full h-full object-cover" />
+                                            </div>
+                                            <div className="flex-1 flex flex-col justify-between py-1">
+                                                <div>
+                                                    <div className="flex justify-between items-center mb-1">
+                                                        <span className="text-[10px] text-slate-400">{account.code || `#${account.id}`}</span>
+                                                        <span className="text-[10px] bg-white/10 px-2 py-0.5 rounded text-white">{account.game === 'codm' ? 'کالاف' : account.game === 'clash_of_clans' ? 'کلش کلنز' : 'کلش رویال'}</span>
+                                                    </div>
+                                                    <h3 className="font-bold text-sm text-white line-clamp-2 leading-tight">{account.title}</h3>
+                                                </div>
+                                                <div className="text-skybrand-400 font-black text-sm">{new Intl.NumberFormat('fa-IR').format(account.price)} تومان</div>
+                                            </div>
+                                        </div>
+                                        <div className="grid grid-cols-3 gap-2">
+                                            <button onClick={() => { setEditingAccount(account); setView('edit_account'); }} className="bg-skybrand-500/10 text-skybrand-400 border border-skybrand-500/20 py-2 rounded-xl text-xs font-bold hover:bg-skybrand-500/20"><i className="fas fa-edit mb-1 block"></i> ویرایش سریع</button>
+                                            <button onClick={() => handleMarkAsSold(account.id)} disabled={account.status === 'sold'} className="bg-amber-500/10 text-amber-400 border border-amber-500/20 py-2 rounded-xl text-xs font-bold hover:bg-amber-500/20 disabled:opacity-30"><i className="fas fa-tag mb-1 block"></i> ثبت فروش</button>
+                                            <button onClick={() => handleDeleteAccount(account.id)} className="bg-red-500/10 text-red-400 border border-red-500/20 py-2 rounded-xl text-xs font-bold hover:bg-red-500/20"><i className="fas fa-trash mb-1 block"></i> حذف آگهی</button>
+                                        </div>
+                                    </div>
+                                );
+                            })
+                        )}
+                    </div>
+                </div>
+            );
+
+            const EditAccountView = () => {
+                const [formData, setFormData] = useState({...editingAccount});
+                const fileInputRef = useRef(null);
+                
+                const handleChange = (e) => setFormData({...formData, [e.target.name]: e.target.value});
+                
+                const handleImageChange = (e) => {
+                    if (e.target.files && e.target.files.length > 0) {
+                        compressImage(e.target.files[0], (compressedData) => {
+                            setFormData({ ...formData, lobbyImg: compressedData, images: [compressedData] });
+                        });
+                    }
+                };
+
+                const handleSave = (e) => {
+                    e.preventDefault();
+                    syncAccountsToStorage(accounts.map(a => a.id === formData.id ? formData : a));
+                    alert('تغییرات شما با موفقیت ذخیره شد و روی سایت مشتری اعمال گردید.');
+                    setView('accounts');
+                };
+                
+                const currentThumb = formData.lobbyImg || (formData.images && formData.images[0]) || '';
+
+                return (
+                    <div className="animate-fade-in space-y-4 pb-20">
+                        <div className="flex items-center justify-between mb-4">
+                            <button onClick={() => setView('accounts')} className="text-skybrand-400 text-sm font-bold"><i className="fas fa-arrow-right ml-1"></i> بازگشت</button>
+                            <h2 className="text-lg font-black text-white">ویرایش آگهی {formData.code || `#${formData.id}`}</h2>
+                        </div>
+                        <form onSubmit={handleSave} className="space-y-4">
+                            <div className="bg-admin-card p-4 rounded-2xl border border-admin-border space-y-4">
+                                <h3 className="text-skybrand-400 font-bold text-sm border-b border-white/5 pb-2">اطلاعات اصلی اکانت</h3>
+                                <div><label className="text-xs text-slate-400 block mb-1">عنوان آگهی</label><input name="title" value={formData.title} onChange={handleChange} className="w-full bg-[#020617] border border-white/10 rounded-xl p-3 text-sm text-white" /></div>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div><label className="text-xs text-slate-400 block mb-1">قیمت (تومان)</label><input name="price" type="number" value={formData.price} onChange={handleChange} className="w-full bg-[#020617] border border-white/10 rounded-xl p-3 text-sm text-white" /></div>
+                                    <div><label className="text-xs text-slate-400 block mb-1">لول</label><input name="level" type="number" value={formData.level} onChange={handleChange} className="w-full bg-[#020617] border border-white/10 rounded-xl p-3 text-sm text-white" /></div>
+                                </div>
+                                <div>
+                                    <label className="text-xs text-slate-400 block mb-1">عکس اصلی اکانت</label>
+                                    <div onClick={() => fileInputRef.current.click()} className="h-32 w-full bg-[#020617] rounded-xl border border-white/10 overflow-hidden relative cursor-pointer flex items-center justify-center">
+                                        <img src={currentThumb} className="w-full h-full object-cover opacity-60" />
+                                        <span className="absolute bg-black/50 text-white px-3 py-1 rounded-lg backdrop-blur font-bold text-xs"><i className="fas fa-camera mr-1"></i> تغییر عکس</span>
+                                    </div>
+                                    <input type="file" ref={fileInputRef} onChange={handleImageChange} accept="image/*" className="hidden" />
+                                </div>
+                            </div>
+                            
+                            <div className="bg-admin-card p-4 rounded-2xl border border-admin-border space-y-4 mt-4">
+                                <h3 className="text-purplebrand-400 font-bold text-sm border-b border-white/5 pb-2">اطلاعات تماس فروشنده</h3>
+                                <div><label className="text-xs text-slate-400 block mb-1">شماره تماس</label><input name="phone" value={formData.phone || ''} onChange={handleChange} className="w-full bg-[#020617] border border-white/10 rounded-xl p-3 text-sm text-white" dir="ltr" /></div>
+                                <div><label className="text-xs text-slate-400 block mb-1">آیدی تلگرام</label><input name="telegramId" value={formData.telegramId || ''} onChange={handleChange} className="w-full bg-[#020617] border border-white/10 rounded-xl p-3 text-sm text-white" dir="ltr" /></div>
+                                <div><label className="text-xs text-amber-400 block mb-1">رمز شب (محرمانه)</label><input name="nightPassword" value={formData.nightPassword || ''} onChange={handleChange} className="w-full bg-amber-500/10 border border-amber-500/30 rounded-xl p-3 text-sm text-amber-300 font-bold" /></div>
+                            </div>
+
+                            <button type="submit" className="w-full bg-skybrand-500 hover:bg-skybrand-400 text-black font-black py-4 rounded-2xl shadow-lg transition-colors mt-6">ذخیره و اعمال در سایت مشتری</button>
+                        </form>
+                    </div>
+                );
+            };
+
+            return (
+                <div className="min-h-screen flex flex-col">
+                    <AdminHeader />
+                    <main className="flex-1 p-4 max-w-lg mx-auto w-full pb-24">
+                        {view === 'accounts' && <AccountsView />}
+                        {view === 'edit_account' && editingAccount && <EditAccountView />}
+                        {view === 'orders' && <OrdersView />}
+                    </main>
+                    <nav className="fixed bottom-0 left-0 right-0 bg-[#020617]/90 backdrop-blur-lg border-t border-skybrand-500/20 px-6 py-3 flex justify-between items-center z-50">
+                        <button onClick={() => setView('accounts')} className={`flex flex-col items-center gap-1 transition-colors ${view === 'accounts' ? 'text-skybrand-400' : 'text-slate-500'}`}>
+                            <i className="fas fa-list text-xl"></i>
+                            <span className="text-[10px] font-bold">آگهی‌ها ({accounts.length})</span>
+                        </button>
+                        <button onClick={() => setView('orders')} className={`flex flex-col items-center gap-1 transition-colors ${view === 'orders' ? 'text-skybrand-400' : 'text-slate-500'}`}>
+                            <i className="fas fa-shopping-cart text-xl"></i>
+                            <span className="text-[10px] font-bold">سفارشات {orders.filter(o=>o.status==='pending').length > 0 && <span className="bg-red-500 text-white rounded-full px-1.5">{orders.filter(o=>o.status==='pending').length}</span>}</span>
+                        </button>
+                    </nav>
+                </div>
+            );
+        };
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<AdminApp />);
+    </script>
+</body>
+</html>
